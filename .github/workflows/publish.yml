@@ -1,0 +1,33 @@
+name: Publish to Instagram
+
+on:
+  push:
+    branches: [main]
+    paths: ["posts/**/manifest.json"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: instagram-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish approved carousel
+        env:
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          PAGES_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
+        run: python3 scripts/publish.py
+      - name: Record result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add posts/*/published.json 2>/dev/null || true
+          git diff --cached --quiet || (git commit -m "published $(date -u +%F)" && git push)

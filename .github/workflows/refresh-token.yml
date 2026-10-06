@@ -1,0 +1,24 @@
+name: Refresh Instagram token
+
+# 장기 토큰은 60일 만료 → 매달 1일·15일에 갱신해 GitHub Secret을 덮어쓴다.
+on:
+  schedule:
+    - cron: "17 3 1,15 * *"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh and store
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT_SECRETS }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          resp=$(curl -fsS "https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${IG_ACCESS_TOKEN}")
+          new=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+          echo "::add-mask::$new"
+          gh secret set IG_ACCESS_TOKEN --repo "$REPO" --body "$new"
+          echo "refreshed; expires_in=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('expires_in'))")"

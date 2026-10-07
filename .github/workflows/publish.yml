@@ -12,22 +12,55 @@ concurrency:
 
 permissions:
   contents: write
+  pages: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Publish approved carousel
+
+      - name: Build weekly reel (Sundays only)
+        id: reel
+        run: |
+          d=$(python3 - <<'EOF'
+          import datetime, glob, json, os
+          ps = [os.path.dirname(m) for m in sorted(glob.glob("posts/*/manifest.json"))
+                if json.load(open(m)).get("approved") is True and not os.path.exists(os.path.dirname(m) + "/published.json")]
+          if ps:
+              d = ps[-1]
+              day = datetime.date.fromisoformat(os.path.basename(d))
+              if day.weekday() == 6 and not os.path.exists(d + "/reel.mp4"):
+                  print(d)
+          EOF
+          )
+          if [ -z "$d" ]; then echo "릴스 생성 대상 아님"; exit 0; fi
+          which ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
+          python3 scripts/make_reel.py "$d"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$d/reel.mp4" && git commit -m "reel $(basename $d)" && git push
+          echo "built=1" >> "$GITHUB_OUTPUT"
+
+      - name: Request Pages rebuild for the reel
+        if: steps.reel.outputs.built == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X POST "repos/${{ github.repository }}/pages/builds" || echo "Pages 빌드 요청 실패(자동 배포를 기다림)"
+
+      - name: Publish (carousel + story + reel + threads)
         env:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
           PAGES_BASE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}
         run: python3 scripts/publish.py
+
       - name: Record result
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add posts/*/published.json 2>/dev/null || true
-          git diff --cached --quiet || (git commit -m "published $(date -u +%F)" && git push)
+          git diff --cached --quiet || (git commit -m "published $(date -u +%F)" && git pull --rebase -q && git push)

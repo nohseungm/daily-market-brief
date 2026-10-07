@@ -2,8 +2,9 @@
 """Usage: python3 render.py data.json OUTDIR
 {fact_id} 치환 후 1080x1350 JPEG 캐러셀 + caption.txt + manifest.json 생성.
 디자인 v2: 표지 훅(큰 헤드라인·KPI 칩·스와이프 유도), 지표 타일+등락 막대, 번호 카드, 진행 바,
-핵심 요소는 중앙 1080x1080 안전 영역(위아래 135px 제외) 안에 배치 — 1:1로 잘려도 내용 보존."""
-import json, sys, html, os, re
+핵심 요소는 중앙 1080x1080 안전 영역(위아래 135px 제외) 안에 배치 — 1:1로 잘려도 내용 보존.
+v3: 스토리용 story.jpg(1080x1920) 추가 생성(캐러셀에는 포함 안 됨), 브라우저 실행 경로 자동 탐색."""
+import json, sys, html, os, re, glob, shutil
 from playwright.sync_api import sync_playwright
 
 data = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -93,6 +94,16 @@ h1 em{font-style:normal;color:var(--hl)}
  display:flex;justify-content:space-between}
 .prog{position:absolute;left:72px;right:72px;bottom:64px;height:6px;border-radius:4px;background:#1a2640}
 .prog i{display:block;height:100%;border-radius:4px;background:var(--acc)}
+/* story 1080x1920: 위 250px·아래 320px은 인스타 UI가 덮는 영역이라 비움 */
+body.story{height:1920px}
+.story .top{top:120px}
+.story .safe{top:260px;bottom:330px}
+.story h1{font-size:112px;margin-top:44px;letter-spacing:-3px}
+.story .new{align-self:flex-start;margin-top:auto;font-size:30px;font-weight:900;color:#0b1220;background:var(--hl);
+ padding:12px 26px;border-radius:999px}
+.story .chips{margin-top:26px}
+.story .chip{font-size:34px;padding:26px 30px}
+.story .go{margin-top:30px;font-size:32px;font-weight:800;color:var(--hl)}
 """
 
 LOGO = """<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#16233a"/>
@@ -145,17 +156,46 @@ hd = E(data.get("handle") or "")
 slides.append(("", f'<div class="tag">SOURCES</div><h1>오늘의 출처</h1><ul class="src">{srcs}</ul>'
                f'<div class="cta"><b>매일 아침, 팩트로만 보는 시장</b><span>팔로우 {hd} · 저장해두고 다음 날과 비교해보세요</span></div>'))
 
+story = f"""<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head>
+<body class="story"><div class="bgglow"></div>
+<div class="top"><div class="brand">{LOGO}<span>{hd}</span></div><span>{E(data['date'])}</span></div>
+<div class="safe"><div class="tag">{E(c["tag"])}</div><h1>{hl_title(c["title"])}</h1><div class="sub">{E(c["sub"])}</div>
+<div class="new">NEW · 오늘의 카드뉴스</div><div class="chips">{chips}</div>
+<div class="go">전체 내용은 프로필의 새 게시물에서 →</div></div></body></html>"""
+
+
+def launch(p):
+    """기본 실행이 안 되면(브라우저 버전 불일치 등) 설치된 Chromium을 찾아 실행"""
+    try:
+        return p.chromium.launch()
+    except Exception as e:
+        cands = sorted(glob.glob("/opt/pw-browsers/chromium*/chrome-linux*/chrome")) + \
+                sorted(glob.glob(os.path.expanduser("~/.cache/ms-playwright/chromium*/chrome-linux*/chrome")))
+        cands += [x for x in (shutil.which("chromium"), shutil.which("chromium-browser"), shutil.which("google-chrome"),
+                              "/opt/pw-browsers/chromium") if x and os.path.isfile(x)]
+        for c in reversed(cands):
+            try:
+                return p.chromium.launch(executable_path=c)
+            except Exception:
+                continue
+        raise e
+
+
 n = len(slides)
 with sync_playwright() as p:
-    b = p.chromium.launch()
+    b = launch(p)
     pg = b.new_page(viewport={"width": 1080, "height": 1350})
     for i, (cls, inner) in enumerate(slides, 1):
         pg.set_content(page(inner, i, n, cls), wait_until="load")
         pg.screenshot(path=f"{out}/{i:02d}.jpg", type="jpeg", quality=85)
+    pg.set_viewport_size({"width": 1080, "height": 1920})
+    pg.set_content(story, wait_until="load")
+    pg.screenshot(path=f"{out}/story.jpg", type="jpeg", quality=85)
     b.close()
 open(f"{out}/caption.txt", "w", encoding="utf-8").write(data["caption"])
 assert len(data["caption"]) <= 2200 and data["caption"].count("#") <= 30, "caption too long / too many hashtags"
 assert n <= 10, "carousel max 10"
-json.dump({"images": [f"{i:02d}.jpg" for i in range(1, n + 1)], "caption_file": "caption.txt", "approved": False},
+json.dump({"images": [f"{i:02d}.jpg" for i in range(1, n + 1)], "caption_file": "caption.txt",
+           "story": "story.jpg", "approved": False},
           open(f"{out}/manifest.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 print(f"rendered {n} slides -> {out}")

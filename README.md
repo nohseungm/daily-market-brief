@@ -10,11 +10,14 @@ Claude 예약 작업 (06:52 KST, 비공개)
   ├─ 1. 조사: 기사·공식 데이터로 초안(draft.json) 작성. 모든 숫자는 {fact_id}로만 카드에 들어감
   ├─ 2. 블라인드 재검증: 값을 가린 질문지 → 별도 에이전트가 처음부터 다시 조사
   ├─ 3. verify.py 대조: 불일치·근거 부족·목록에 없는 숫자 → 게시 보류
-  ├─ 4. render.py: 1080×1350 JPEG + caption + manifest(approved)
+  ├─ 4. render.py: 1080×1350 JPEG + 스토리용 story.jpg(1080×1920) + caption + manifest(approved)
   └─ 5. git push posts/YYYY-MM-DD/
 GitHub Pages → 이미지 공개 URL
-GitHub Actions(publish.yml) → Instagram API로 캐러셀 게시 → published.json 기록
-GitHub Actions(refresh-token.yml) → 매달 2번 토큰 자동 갱신
+GitHub Actions(publish.yml) → 인스타 캐러셀 게시 → 스토리 → (일요일) 릴스 → (토큰 있으면) 스레드 → published.json 기록
+  · 릴스: 일요일 글이면 make_reel.py가 카드로 9:16 영상(reel.mp4)을 만들어 함께 게시
+  · 스토리·릴스·스레드는 부가 게시라 실패해도 캐러셀은 그대로, 오류는 published.json의 extras에 기록
+GitHub Actions(refresh-token.yml) → 매달 2번 인스타(＋스레드) 토큰 자동 갱신
+GitHub Actions(cleanup-images.yml) → 게시 14일 지난 이미지·영상 삭제
 ```
 
 ## 1회 설정 (약 30분)

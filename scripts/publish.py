@@ -16,6 +16,8 @@ UID = os.environ.get("IG_USER_ID", "")
 TOKEN = os.environ.get("IG_ACCESS_TOKEN", "")
 TH_TOKEN = os.environ.get("THREADS_ACCESS_TOKEN", "").strip()
 BASE = os.environ.get("PAGES_BASE", "").rstrip("/")
+AUTO_STORY = False  # True: story.jpg auto story
+AUTO_REEL = False  # True: reel.mp4 auto reels (silent)
 
 
 class ApiError(Exception):
@@ -158,8 +160,8 @@ def main():
     urls = [f"{BASE}/{d}/{img}" for img in man["images"]]
     assert 2 <= len(urls) <= 10, "캐러셀은 2~10장"
     assert len(caption) <= 2200
-    story = man.get("story") if man.get("story") and os.path.exists(f"{d}/{man['story']}") else None
-    reel = os.path.exists(f"{d}/reel.mp4")
+    story = man.get("story") if AUTO_STORY and man.get("story") and os.path.exists(f"{d}/{man['story']}") else None
+    reel = AUTO_REEL and os.path.exists(f"{d}/reel.mp4")
     print(f"[{d}] 캐러셀 {len(urls)}장 · 스토리 {'O' if story else 'X'} · 릴스 {'O' if reel else 'X'} · "
           f"스레드 {'O' if TH_TOKEN else 'X(토큰 없음)'}")
     if DRY:

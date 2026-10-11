@@ -82,6 +82,19 @@ h1 em{font-style:normal;color:var(--hl)}
 .pt h3{font-size:37px;font-weight:900;line-height:1.3}
 .pt p{font-size:29px;color:#c3cede;line-height:1.5;margin-top:10px}
 .pt small{display:block;font-size:20px;color:var(--dim);margin-top:12px;font-weight:600}
+/* hero */
+.hero{margin-top:auto;margin-bottom:auto}
+.hero .big{font-size:220px;font-weight:900;letter-spacing:-8px;line-height:1}
+.hero .lab{font-size:40px;font-weight:800;margin-top:26px}
+.hero .why{font-size:31px;color:#c3cede;line-height:1.55;margin-top:26px;background:var(--card);border:1.5px solid var(--line);border-radius:26px;padding:26px 30px}
+.hero small{display:block;font-size:20px;color:var(--dim);margin-top:14px;font-weight:600}
+/* term */
+.term{margin-top:40px;background:var(--card);border:1.5px solid var(--line);border-radius:26px;padding:40px 40px 34px}
+.term .w{font-size:60px;font-weight:900;color:var(--hl);letter-spacing:-1px}
+.term .en{font-size:26px;color:var(--mut);font-weight:700;margin-top:6px}
+.term p{font-size:32px;line-height:1.6;color:#d5deeb;margin-top:24px}
+.term .ex{font-size:28px;line-height:1.55;color:#c3cede;margin-top:22px;padding-top:22px;border-top:1.5px dashed var(--line)}
+.term small{display:block;font-size:20px;color:var(--dim);margin-top:18px;font-weight:600}
 /* sources / outro */
 .src{margin-top:30px;background:var(--card);border:1.5px solid var(--line);border-radius:26px;padding:26px 32px;
  font-size:22px;color:#b8c4d6;line-height:1.7;list-style:none}
@@ -146,6 +159,21 @@ for s in data["slides"]:
             tiles.append(f'<div class="tile{wide}"><div class="n">{E(r["name"])}</div><div class="v">{E(r["value"])}</div>'
                          f'<div class="c {tone(r["chg"])}">{arrow(r["chg"])} {E(r["chg"])}</div>{bar}{note}</div>')
         body += '<div class="tiles">' + "".join(tiles) + '</div>'
+    h = s.get("hero")
+    if h:
+        body += f'<div class="hero"><div class="big {tone(h["value"])}">{E(h["value"])}</div><div class="lab">{colorize(h["label"])}</div>'
+        if h.get("body"):
+            body += f'<div class="why">{colorize(h["body"])}<small>출처 · {E(h.get("src", ""))}</small></div>'
+        body += '</div>'
+    t = s.get("term")
+    if t:
+        body += f'<div class="term"><div class="w">{E(t["word"])}</div>'
+        if t.get("en"):
+            body += f'<div class="en">{E(t["en"])}</div>'
+        body += f'<p>{colorize(t["desc"])}</p>'
+        if t.get("today"):
+            body += f'<div class="ex">오늘 왜 나왔나 · {colorize(t["today"])}</div>'
+        body += f'<small>출처 · {E(t.get("src", ""))}</small></div>'
     if s.get("points"):
         body += '<div class="pts">' + "".join(
             f'<div class="pt"><h3>{colorize(p["head"])}</h3><p>{colorize(p["body"])}</p><small>출처 · {E(p["src"])}</small></div>'

@@ -1,0 +1,45 @@
+name: Threads setup (one-time)
+
+# 스레드 토큰을 60일짜리 장기 토큰으로 바꿔 저장하고, 연결된 계정 이름을 확인한다. 토큰 값은 로그에 나오지 않는다.
+# 필요한 Secret: THREADS_ACCESS_TOKEN(대시보드에서 받은 토큰), THREADS_APP_SECRET(스레드 앱 시크릿), GH_PAT_SECRETS(기존)
+on:
+  workflow_dispatch: {}
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exchange to long-lived token and verify
+        env:
+          TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          APP_SECRET: ${{ secrets.THREADS_APP_SECRET }}
+          GH_TOKEN: ${{ secrets.GH_PAT_SECRETS }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          TOKEN=$(echo -n "$TOKEN" | tr -d '[:space:]')
+          if [ -z "$TOKEN" ]; then echo "::error::THREADS_ACCESS_TOKEN Secret이 없습니다"; exit 1; fi
+          final="$TOKEN"
+          if [ -n "${APP_SECRET}" ]; then
+            resp=$(curl -sS -G "https://graph.threads.net/access_token" \
+              --data-urlencode "grant_type=th_exchange_token" \
+              --data-urlencode "client_secret=${APP_SECRET}" \
+              --data-urlencode "access_token=${TOKEN}")
+            new=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || true)
+            if [ -n "$new" ]; then
+              echo "::add-mask::$new"; final="$new"
+              echo "장기 토큰으로 교환 완료 (expires_in=$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin).get('expires_in'))"))"
+            else
+              echo "교환 생략: 이미 장기 토큰이거나 교환 불가 → 받은 토큰을 그대로 사용"
+            fi
+          else
+            echo "THREADS_APP_SECRET 없음 → 교환 생략"
+          fi
+          me=$(curl -sS -G "https://graph.threads.net/v1.0/me" --data-urlencode "fields=id,username" --data-urlencode "access_token=${final}")
+          user=$(echo "$me" | python3 -c "import sys,json; print(json.load(sys.stdin).get('username',''))" 2>/dev/null || true)
+          if [ -z "$user" ]; then
+            echo "::error::토큰 확인 실패: $(echo "$me" | sed "s/${final}/***/g" | head -c 300)"; exit 1
+          fi
+          echo "연결된 스레드 계정: @$user"
+          gh secret set THREADS_ACCESS_TOKEN --repo "$REPO" --body "$final"
+          echo "THREADS_ACCESS_TOKEN 저장 완료 — 이제 THREADS_APP_SECRET Secret은 삭제해도 됩니다."

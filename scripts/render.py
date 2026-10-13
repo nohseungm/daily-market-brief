@@ -173,6 +173,8 @@ for s in data["slides"]:
         body += f'<p>{colorize(t["desc"])}</p>'
         if t.get("today"):
             body += f'<div class="ex">오늘 왜 나왔나 · {colorize(t["today"])}</div>'
+        if t.get("ex"):
+            body += f'<div class="ex">예를 들면 · {colorize(t["ex"])}</div>'
         body += f'<small>출처 · {E(t.get("src", ""))}</small></div>'
     if s.get("points"):
         body += '<div class="pts">' + "".join(
@@ -224,6 +226,7 @@ open(f"{out}/caption.txt", "w", encoding="utf-8").write(data["caption"])
 assert len(data["caption"]) <= 2200 and data["caption"].count("#") <= 30, "caption too long / too many hashtags"
 assert n <= 10, "carousel max 10"
 json.dump({"images": [f"{i:02d}.jpg" for i in range(1, n + 1)], "caption_file": "caption.txt",
-           "story": "story.jpg", "approved": False},
+           "story": "story.jpg", "term": next((s["term"]["word"] for s in data["slides"] if s.get("term")), None),
+           "approved": False},
           open(f"{out}/manifest.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 print(f"rendered {n} slides -> {out}")
